@@ -1,0 +1,135 @@
+---
+title: "MSCA31008_Assignment1"
+author: "Sijie Li"
+date: "1/23/2022"
+output: html_document
+---
+Get Data
+```{r}
+dataPath <- "C:/Users/Sijie Li/OneDrive - The University of Chicago/Documents/MSCA/Winter2021/MsCA31008 DataMining/Wk2/Dataset"
+dat <- read.csv(paste(dataPath,'GermanCredit.csv',sep = '/'), header=TRUE)
+
+par(mar=c(4,4,4,4))
+```
+
+Explore data
+```{r}
+summary(dat$Duration)
+brksCredit <- seq(0, 80, 10)
+credit_hist <- hist(dat$Duration, breaks=brksCredit, xlab = "Credit Month", ylab = "Frequency", main = " ",cex=0.4) 
+credit_boxplot <- boxplot(dat$Duration, bty="n",xlab = "Credit Month", cex=0.4) 
+
+summary(dat$Amount)
+brksAmount <- seq(250, 20000, 1000)
+amount_hist <- hist(dat$Amount, breaks=brksAmount, xlab = "Credit Amount", ylab = "Frequency", main = " ",cex=0.4) 
+amount_boxplot <- boxplot(dat$Amount, bty="n",xlab = "Credit Amount", cex=0.4) 
+
+summary(dat$Age)
+brksAmount <- seq(10, 80, 5)
+age_hist <- hist(dat$Age, breaks=brksAmount, xlab = "Age", ylab = "Frequency", main = " ",cex=0.4) 
+age_boxplot <- boxplot(dat$Age, bty="n",xlab = "Age", cex=0.4) 
+```
+
+Create empty tables for traing, test samples outputs
+
+```{r}
+train_index <- matrix(ncol = 1000, nrow = 632)
+train_coefficients <- matrix(ncol = 3, nrow = 1000)
+train_r2 <- matrix(ncol = 1, nrow = 1000)
+test_r2 <- matrix(ncol = 1, nrow = 1000)
+pct_fall_r2 <- matrix(ncol = 1, nrow = 1000)
+```
+
+Write for loop to run 1000 times of linear regession on train and test samples
+
+```{r}
+set.seed(20200627)
+for(i in 1:1000) {
+ 
+  train_index[,i] <- sample(1:1000, 632)
+  train_data <- dat[train_index[,i], ]
+  model_train <- lm(formula = lm(Amount ~ Duration  + Age, 
+                                 data = train_data))
+  train_coefficients[i,] <- t(summary(model_train)$coefficients[,1])
+  train_r2[i,] <- summary(model_train)$r.squared
+  test_data <- dat[-train_index[,i], ]
+  model_test <- as.data.frame(predict(model_train, test_data, interval = 'confidence', level = 0.95))
+  test_r2[i,] <- (cor(test_data$Amount, model_test$fit))^2
+  pct_fall_r2[i,] <- (train_r2[i,] - test_r2[i,])/train_r2[i,]
+}
+```
+
+Histgrams of train coefficients on variables
+```{r}
+colnames(train_coefficients) <- c('Intercept', 'Duration', 'Age')
+train_coefficients_df <- data.frame(train_coefficients)
+
+hist(train_coefficients_df$Duration)
+hist(train_coefficients_df$Age)
+```
+
+Histgram on Train R sqaures and % of R sqaure difference 
+```{r}
+hist(train_r2)
+hist(pct_fall_r2)
+```
+The training set gave us a expected output by pairing with input, however we need to validate the model by downsize or up-size the data set. the test data gave us estimation on how well the model is trained.
+
+For R2 value, we would like to see the % of decrease to be close to 0 so it is not much difference with train R2. The histogram indicates a normal distribution, which has the highest frequency on 0.
+
+Calculate Train sample Mean and Standard Deviation
+```{r}
+summary(train_coefficients)
+
+
+train_co_avg_duration <- mean(train_coefficients_df$Duration)
+train_co_avg_age <- mean(train_coefficients_df$Age)
+
+train_co.sd_duration <- sd(train_coefficients_df$Duration)
+train_co.sd_age <- sd(train_coefficients_df$Age)
+```
+
+Create table for comparing  train and full sample
+
+```{r}
+model_full <- lm(formula = lm(Amount ~ Duration  + Age, 
+                               data = dat))
+
+model_full_coefficients<- t(model_full$coefficients)
+model_full_coefficients
+model_full_coefficients <- data.frame(model_full_coefficients)
+
+model_train_full <- matrix(ncol = 3, nrow = 2)
+colnames(model_train_full) <- c('Train Avg',"Full Avg","% Difference")
+rownames(model_train_full) <- c('Duation','Age')
+model_train_full[1,] <- c(train_co_avg_duration, model_full_coefficients$Duration,0)
+model_train_full[2,] <- c(train_co_avg_age,model_full_coefficients$Age,0) 
+
+model_train_full[1,3] <- format(((train_co_avg_duration - model_full_coefficients$Duration)/train_co_avg_duration),,digit = 4)
+model_train_full[2,3] <- format(((train_co_avg_age - model_full_coefficients$Age)/train_co_avg_age),,digit = 4)
+
+#table for train and full sample: comparison between mean coefficients
+model_train_full <- data.frame(model_train_full)
+model_train_full
+```
+Calculate confidence interval
+```{r}
+#train sample
+model_train <- lm(formula = lm(Amount ~ Duration  + Age, 
+                               data = train_data))
+
+train_lu_bond <- data.frame(confint(model_train, level=0.95))
+train_lu_bond_width <- (train_lu_bond$X97.5..-  train_lu_bond$X2.5..)*sqrt(.632)
+train_lu_bond_width
+
+#full sample
+full_lu_bond <- data.frame(confint(model_full,level=0.95))
+full_lu_bond_width <- full_lu_bond$X97.5..-full_lu_bond$X2.5..
+full_lu_bond_width
+```
+Width discussion
+
+The full sample gave us a wider width, means border interval of confidence. In general, the narrower the confidence interval, the more information we have about the value of the population parameter.Therefore, we want all of our confidence intervals to be as narrow as possible. The train sample and full sample has very close interval. 
+
+The width of duration is a little wider in full sample but the age is a little narrower in full sample. The model in general has a good fit in linear regession. However, more variables should be taken into consideration to observe outputs. That is the limitation of this analysis. 
+
