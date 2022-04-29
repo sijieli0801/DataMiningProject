@@ -1,0 +1,132 @@
+---
+title: "Sijie_Li_MSCA31008 Assignment2 Part1"
+author: "Sijie Li"
+date: "2/13/2022"
+output: html_document
+---
+```{r}
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(poLCA)
+
+```
+
+Load Data
+```{r}
+german_credit <- read.table("http://archive.ics.uci.edu/ml/machine-learning-databases/statlog/german/german.data", stringsAsFactors = TRUE)
+
+colnames(german_credit) <- c("CheckingAccountStatus", "Duration", "CreditHistory", "Purpose", "Amount",  "SavingsAccountBonds", "EmploymentDuration", "InstallmentRatePercentage",  "Personal",  "OtherDebtorsGuarantors", "ResidenceDuration", "Property",  "Age",  
+                            "OtherInstallmentPlans", "Housing", "NumberExistingCredits", "Job", "NumberPeopleMaintenance", "Telephone", "ForeignWorker", "Class")
+
+LCA_data <- german_credit[,c(1,3,6,7,9,12,17)]
+
+summary(LCA_data)
+```
+```{r}
+LCA_data$CheckingAccountStatus <- as.factor(LCA_data$CheckingAccountStatus)
+LCA_data$CheckingAccountStatus <- as.numeric(LCA_data$CheckingAccountStatus)
+LCA_data$CreditHistory <- as.factor(LCA_data$CreditHistory)
+LCA_data$CreditHistory <- as.numeric(LCA_data$CreditHistory)
+LCA_data$SavingsAccountBonds <- as.factor(LCA_data$SavingsAccountBonds)
+LCA_data$SavingsAccountBonds <- as.numeric(LCA_data$SavingsAccountBonds)
+LCA_data$EmploymentDuration <- as.factor(LCA_data$EmploymentDuration)
+LCA_data$EmploymentDuration <- as.numeric(LCA_data$EmploymentDuration)
+LCA_data$Personal <- as.factor(LCA_data$Personal)
+LCA_data$Personal <- as.numeric(LCA_data$Personal)
+LCA_data$Property <- as.factor(LCA_data$Property)
+LCA_data$Property <- as.numeric(LCA_data$Property)
+LCA_data$Job <- as.factor(LCA_data$Job)
+LCA_data$Job <- as.numeric(LCA_data$Job)
+```
+
+Train-test split with random sampling 
+```{r}
+set.seed(12420246)
+library(caTools)
+in.train <- sample.split(german_credit$Amount, SplitRatio=0.7)
+in.test <- 1 - in.train
+x.train <- LCA_data[in.train,]
+x.test <- LCA_data[in.test,]
+x.train <- subset(LCA_data,in.train==TRUE)
+x.test <- subset(LCA_data,in.train==FALSE)
+```
+
+Fit the training set into LCA model
+```{r}
+f <- cbind(CheckingAccountStatus,CreditHistory,SavingsAccountBonds,EmploymentDuration,Personal,Property,Job)~1
+
+aic <- c()
+bic <- c()
+
+for (i in 2:6){
+  LCA_model <- poLCA(f, x.train, nclass = i, nrep=10, verbose = FALSE)
+  aic[i] <- LCA_model$aic
+  bic[i] <- LCA_model$bic
+}
+```
+
+Scree Plot to see the elbow
+```{r}
+par(mar=c(1,1,1,1))
+class <- c(1,2,3,4,5,6)
+
+#AIC - best drop at class = 3 
+screeplotdfaic <- data.frame(class,aic)
+ggplot(screeplotdfaic, aes(x=class, y=aic)) +
+  geom_line()
+
+#BIC - best drop at class = 3
+screeplotdfbic <- data.frame(class,bic)
+ggplot(screeplotdfbic, aes(x=class, y=bic)) +
+  geom_line()
+
+```
+Choose optimal k = 3
+Plot into visualization to see the classification
+```{r}
+LCA_model <- poLCA(f, x.train, nclass = 3, nrep = 10, verbose= FALSE, graph=TRUE)
+```
+LCA model classification on training data
+
+Class 1:
+People who have job at level 2, personal property at level 3, employment duration at max level (level 5), and highest status at checking account.
+
+Class 2 (maximum % of observation):
+Peopeo who have job at level 1 and 2, medium Employment duration, level 1 saving account, medium (level 3) credit history.
+
+
+Class 3 
+People we have job at medium to high level, personal property at medium to high level as well. Saving account bond at low status, and credit history at medium level. Checking acount status is low to medium.
+```{r}
+print(LCA_model)
+
+```
+
+
+Validate on test set
+```{r}
+LCA_model_test <- poLCA(f, x.test, nclass = 3, probs.start = LCA_model$probs, nrep = 10,verbose= FALSE,graph=TRUE)
+
+```
+
+LCA model classification on test data:
+The test model accounted for much more less proportion on class 3. 
+
+Class 1
+Very similar with train model, level 2 job performer, high level status at checking account status. Except for the personal property status is higher in test model, but lower in train model.
+
+Class 2
+Accounted for the most proportion like train model, however,more than in the train model. It shares characteristics with train model class 2.
+
+Class 3
+Again very similar with class 3 in train model, except the low index in employment duration. Also, this calss accounted for very minimul proportion in test set. 
+```{r}
+print(LCA_model_test)
+
+```
+
+Name the class:
+Class 1: Skilled and Stable White-Collar Worker
+Class 2: Skilled Blue-Collar Worker
+Class 3: Highly skilled Silver-Collar Worker
